@@ -16,12 +16,12 @@
 	</parent>
 
 	<groupId>org.janelia</groupId>
-	<artifactId>H5J_Loader_Plugin</artifactId>
+	<artifactId>H5J_Writer_Plugin</artifactId>
 	<version>1.0.7-SNAPSHOT</version>
 
-	<name>plugins/H5J_Loader_Plugin.jar</name>
+	<name>plugins/H5J_Writer_Plugin.jar</name>
 	<description>A Maven project implementing an ImageJ plugin</description>
-	<url>https://github.com/fiji/H5J_Loader_Plugin</url>
+	<url>https://github.com/fiji/H5J_Writer_Plugin</url>
 	<inceptionYear>2015</inceptionYear>
 	<organization>
 		<name>HHMI Janelia Research Campus</name>
@@ -73,18 +73,18 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:git://github.com/fiji/H5J_Loader_Plugin</connection>
-		<developerConnection>scm:git:git@github.com:fiji/H5J_Loader_Plugin</developerConnection>
+		<connection>scm:git:git://github.com/fiji/H5J_Writer_Plugin</connection>
+		<developerConnection>scm:git:git@github.com:fiji/H5J_Writer_Plugin</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/fiji/H5J_Loader_Plugin</url>
+		<url>https://github.com/fiji/H5J_Writer_Plugin</url>
 	</scm>
 	<issueManagement>
 		<system>GitHub Issues</system>
-		<url>https://github.com/fiji/H5J_Loader_Plugin/issues</url>
+		<url>https://github.com/fiji/H5J_Writer_Plugin/issues</url>
 	</issueManagement>
 	<ciManagement>
 		<system>Travis CI</system>
-		<url>https://travis-ci.org/fiji/H5J_Loader_Plugin</url>
+		<url>https://travis-ci.org/fiji/H5J_Writer_Plugin</url>
 	</ciManagement>
 
 	<properties>
@@ -115,11 +115,6 @@
 			<artifactId>jhdf5</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>org.bytedeco.javacpp-presets</groupId>
-			<artifactId>ffmpeg</artifactId>
-			<version>2.6.1-0.11</version>
-		</dependency>
 
 		<dependency>
 			<groupId>junit</groupId>
