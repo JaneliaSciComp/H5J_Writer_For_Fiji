@@ -8,6 +8,6 @@ H5J Reader Plugin was created at HHMI Janelia Research Campus.
 
 Precompiled Binaries
 ========
-https://github.com/takashi310/H5J_Writer_For_Fiji/releases
+https://github.com/JaneliaSciComp/H5J_Writer_For_Fiji/releases
 
 ![Janelia Logo](hhmi_janelia_transparentbkgrnd.png)
