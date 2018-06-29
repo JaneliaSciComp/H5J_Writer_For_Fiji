@@ -16,6 +16,9 @@ import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
 
 import java.io.File;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -123,6 +126,20 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
 	boolean saveStackHDF5(String fileName, ImagePlus img)
     {
         try {
+        	/*
+    		//String ffmpeg_dir = IJ.getDirectory("startup") + "ffmpeg/";
+    		URLClassLoader cl = (URLClassLoader) ClassLoader.getSystemClassLoader();
+        	//Class<?> ccl = URLClassLoader.class;
+        	//Method methodAddUrl = ccl.getDeclaredMethod("addURL", URL.class);
+        	//methodAddUrl.setAccessible(true);
+        	//methodAddUrl.invoke(cl, new File(ffmpeg_dir+"javacpp-1.4.1").toURI().toURL());
+        	//methodAddUrl.invoke(cl, new File(ffmpeg_dir+"ffmpeg-4.0-1.4.2-macosx-x86_64.jar").toURI().toURL());
+        	//methodAddUrl.invoke(cl, new File(ffmpeg_dir+"ffmpeg-4.0-1.4.2.jar").toURI().toURL());
+        	URL[] urls = cl.getURLs();
+        	for (URL u : urls) {
+        		System.out.println(u.toString());
+        	}
+        	*/
         	FileInfo finfo = img.getFileInfo();
     		if(finfo == null) return false;
         	int[] dims = img.getDimensions();
@@ -135,7 +152,7 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
     		double spcx = finfo.pixelWidth;
     		double spcy = finfo.pixelHeight;
     		double spcz = finfo.pixelDepth;
-    		String unit = finfo.unit;
+    		String unit = finfo.unit != null ? finfo.unit : "";
     		
     		ImageStack stack = img.getStack();
     		ImageProcessor[] iplist = new ImageProcessor[d*nCh];
@@ -170,7 +187,10 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
             writer.string().setAttr("/Channels", "unit", unit);
             
             String options = (bdepth == 8 ? "crf=15:psy-rd=1.0" : "crf=7:psy-rd=1.0");
-
+            
+            double total_slices = nCh*d;
+            long current_slice = 0;
+            IJ.showProgress(current_slice / total_slices);
             for ( int c = 0; c < nCh; ++c )
             {
                 double default_irange = 1.0; // assumes data range is 0-255.0
@@ -201,6 +221,8 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         					}
         				}
         				encoder.write_frame();
+        				current_slice++;
+        				IJ.showProgress(current_slice / total_slices);
         			}
         		} else {
         			for ( int z = 0; z < d; ++z )
@@ -220,6 +242,8 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         					}
         				}
         				encoder.write_frame();
+        				current_slice++;
+        				IJ.showProgress(current_slice / total_slices);
         			}
         		}
 
@@ -229,10 +253,11 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
                 encoder.close();
                 byte[] arr = new byte[encoder.buffer_size()];
                 encoder.buffer().get(arr);
-                String dataset_path = "/Channels/Channel " + c;
+                String dataset_path = "/Channels/Channel_" + c;
                 writer.writeByteArray(dataset_path, arr);
 
-                IJ.log("Encoded channel is " + encoder.buffer_size() + " bytes.");
+                IJ.log("Channel_"+c+":  Encoded channel is " + encoder.buffer_size() + " bytes.");
+                IJ.log("Done");
             }
             writer.file().flush();
             writer.close();

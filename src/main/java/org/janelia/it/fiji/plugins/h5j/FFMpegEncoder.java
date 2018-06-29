@@ -44,7 +44,7 @@ public class FFMpegEncoder {
         	IJ.log("Unable to find codec");
         	return;
         }
-        IJ.log("codec: "+codec.name().getString()+"  id: "+codec.id()+"    AV_CODEC_ID_HEVC:"+AV_CODEC_ID_HEVC);
+        //IJ.log("codec: "+codec.name().getString()+"  id: "+codec.id()+"    AV_CODEC_ID_HEVC:"+AV_CODEC_ID_HEVC);
 
         container = avformat_alloc_context();
         if (null == container) {
@@ -73,7 +73,6 @@ public class FFMpegEncoder {
         // fmt->video_codec = AV_CODEC_ID_H264; // fails to write
 
         pCtx = avcodec_alloc_context3(codec);
-        IJ.log("codec_ctx: "+pCtx.codec_id());
         pCtx.width(width);
         pCtx.height(height);
         pCtx.bit_rate(width*height*4);
@@ -142,9 +141,9 @@ public class FFMpegEncoder {
         	IJ.log("Error allocating RGB frame buffer"); return;
         }
         
-        IJ.log("w: "+pCtx.width());
-        IJ.log("h: "+pCtx.height());
-        IJ.log("linesize: "+picture_rgb.linesize().get(0));
+        //IJ.log("w: "+pCtx.width());
+        //IJ.log("h: "+pCtx.height());
+        //IJ.log("linesize: "+picture_rgb.linesize().get(0));
 
         // Fill in frame parameters
         picture_yuv.format(pCtx.pix_fmt());
@@ -186,7 +185,6 @@ public class FFMpegEncoder {
             }
             container.pb(ioc);
         }
-        IJ.log("pb: "+container.pb());
         
         avformat_write_header(container, (PointerPointer)null);
     }
@@ -248,8 +246,8 @@ public class FFMpegEncoder {
         	if (ret < 0) {
         		BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
         		avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
-        		System.out.println("Can not send frame:"+ep.getString());
-        		IJ.log("frame: "+ _frame_count +"    send_error: "+ret);
+        		//System.out.println("Can not send frame:"+ep.getString());
+        		//IJ.log("frame: "+ _frame_count +"    send_error: "+ret);
         		return;
         	}
         } else {
@@ -260,13 +258,13 @@ public class FFMpegEncoder {
         if (ret < 0) {
             BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
             avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
-            System.out.println("Can not receive  packet:"+ep.getString());
-            IJ.log("frame: "+ _frame_count +"    receive_error: "+ret);
+            //System.out.println("Can not receive  packet:"+ep.getString());
+            //IJ.log("frame: "+ _frame_count +"    receive_error: "+ret);
             return;
         }
         
         if (!packet.isNull()) {
-        	System.out.println("Succeed to encode one frame \tsize"+packet.size());
+        	//System.out.println("Succeed to encode one frame \tsize"+packet.size());
         	
             _encoded_frames++;
             if ( pCtx.codec_id() == AV_CODEC_ID_HEVC )
@@ -278,7 +276,7 @@ public class FFMpegEncoder {
             }
 
             int result = av_write_frame(container, packet);
-            IJ.log("frame: "+ _frame_count +"    packet size: "+packet.size());
+            //IJ.log("frame: "+ _frame_count +"    packet size: "+packet.size());
             av_packet_unref(packet);
         }
 
