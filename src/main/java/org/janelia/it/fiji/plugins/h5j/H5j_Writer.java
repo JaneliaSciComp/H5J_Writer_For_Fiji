@@ -254,7 +254,8 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
                 byte[] arr = new byte[encoder.buffer_size()];
                 encoder.buffer().get(arr);
                 String dataset_path = "/Channels/Channel_" + c;
-                writer.writeByteArray(dataset_path, arr);
+                writer.int8().createArray(dataset_path, arr.length);
+                writer.int8().writeArray(dataset_path, arr);
 
                 IJ.log("Channel_"+c+":  Encoded channel is " + encoder.buffer_size() + " bytes.");
                 IJ.log("Done");

@@ -108,19 +108,20 @@ public class FFMpegEncoder {
         	return;
         }
         
-        AVStream video_st = avformat_new_stream(container, null);
+        video_st = avformat_new_stream(container, null);
         if (video_st == null) {
         	IJ.log("Error creating stream");
         	return;
         }
        
-        video_st.sample_aspect_ratio(pCtx.sample_aspect_ratio());
-        video_st.time_base(pCtx.time_base());
-       
         if (avcodec_parameters_from_context(video_st.codecpar(), pCtx) < 0) {
         	IJ.log("avcodec_parameters_from_context failed");
         	return;
         }
+        
+        video_st.id(container.nb_streams()-1);
+        video_st.sample_aspect_ratio(pCtx.sample_aspect_ratio());
+        video_st.time_base(pCtx.time_base());
         
         /* Get framebuffers */
         if ( ( picture_yuv = av_frame_alloc() ) == null ) { // final frame format
@@ -186,7 +187,7 @@ public class FFMpegEncoder {
             container.pb(ioc);
         }
         
-        avformat_write_header(container, (PointerPointer)null);
+        avformat_write_header(container, codec_options);
     }
    
     void setPixelIntensity(int x, int y, int c, byte value) {
@@ -272,10 +273,11 @@ public class FFMpegEncoder {
                 if (packet.pts() == AV_NOPTS_VALUE && (pCtx.codec().capabilities() & AV_CODEC_CAP_DELAY) == 0)
                     packet.pts(_frame_count);
 
-                av_packet_rescale_ts(packet, pCtx.time_base(), pCtx.time_base());
+                av_packet_rescale_ts(packet, pCtx.time_base(), video_st.time_base());
+                packet.stream_index(video_st.index());
             }
 
-            int result = av_write_frame(container, packet);
+            int result = av_interleaved_write_frame(container, packet);
             //IJ.log("frame: "+ _frame_count +"    packet size: "+packet.size());
             av_packet_unref(packet);
         }
@@ -287,6 +289,7 @@ public class FFMpegEncoder {
 
     private AVFormatContext container;
     private AVCodecContext pCtx;
+    private AVStream video_st;
     private AVFrame picture_yuv;
     private AVFrame picture_rgb;
     private SwsContext Sctx;
