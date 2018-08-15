@@ -191,7 +191,7 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
             double total_slices = nCh*d;
             long current_slice = 0;
             IJ.showProgress(current_slice / total_slices);
-            for ( int c = 0; c < nCh; ++c )
+            for ( int c = 0; c < nCh; c++ )
             {
                 double default_irange = 1.0; // assumes data range is 0-255.0
                 List<Double> imin = new ArrayList<>(Collections.nCopies(nCh, 0.0));
@@ -199,11 +199,11 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         		FFMpegEncoder encoder = new FFMpegEncoder( (String)null, (int)scaledWidth, (int)scaledHeight, bdepth, "libx265", options );
                 // If the image needs padding, fill the expanded border regions with black
         		if (bdepth == 8) {
-        			for ( int z = 0; z < d; ++z )
+        			for ( int z = 0; z < d; z++ )
         			{
-        				for ( int y = 0; y < scaledHeight; ++y )
+        				for ( int y = 0; y < scaledHeight; y++ )
         				{
-        					for ( int x = 0; x < scaledWidth; ++x )
+        					for ( int x = 0; x < scaledWidth; x++ )
         					{
         						// If inside the area with valid data
         						if ( x < w && y < h )
@@ -223,13 +223,15 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         				encoder.write_frame();
         				current_slice++;
         				IJ.showProgress(current_slice / total_slices);
+        				if (z == d-1)
+        					encoder.write_frame();
         			}
         		} else {
-        			for ( int z = 0; z < d; ++z )
+        			for ( int z = 0; z < d; z++ )
         			{
-        				for ( int y = 0; y < scaledHeight; ++y )
+        				for ( int y = 0; y < scaledHeight; y++ )
         				{
-        					for ( int x = 0; x < scaledWidth; ++x )
+        					for ( int x = 0; x < scaledWidth; x++ )
         					{
         						// If inside the area with valid data
         						if ( x < w && y < h )
@@ -244,10 +246,13 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         				encoder.write_frame();
         				current_slice++;
         				IJ.showProgress(current_slice / total_slices);
+        				
+        				if (z == d-1)
+        					encoder.write_frame();
         			}
         		}
-
-                for ( int rem = encoder.encoded_frames(); rem < d; rem++ )
+        		
+                for ( int rem = encoder.encoded_frames(); rem < d+1; rem++ )
                     encoder.encode(null);
 
                 encoder.close();

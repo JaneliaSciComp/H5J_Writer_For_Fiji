@@ -4,6 +4,7 @@ package org.janelia.it.fiji.plugins.h5j;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.ShortPointer;
 import org.bytedeco.javacpp.DoublePointer;
+import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.javacpp.PointerPointer;
 import org.bytedeco.javacpp.avutil;
@@ -38,6 +39,8 @@ public class FFMpegEncoder {
         avdevice_register_all();
         av_register_all();
         avformat_network_init();
+        
+        av_log_set_level(AV_LOG_TRACE);
         
         AVCodec codec = avcodec_find_encoder_by_name(codec_name);
         if (null == codec) {
@@ -77,7 +80,7 @@ public class FFMpegEncoder {
         pCtx.height(height);
         pCtx.bit_rate(width*height*4);
         pCtx.gop_size(12);
-        pCtx.time_base(new AVRational().num(1).den(25));
+        pCtx.time_base(new AVRational().num(1000).den(25000));
         if ((fmt.flags() & AVFMT_GLOBALHEADER) > 0)
             pCtx.flags(AV_CODEC_FLAG_GLOBAL_HEADER);
         pCtx.strict_std_compliance(AVCodecContext.FF_COMPLIANCE_EXPERIMENTAL);
@@ -108,20 +111,40 @@ public class FFMpegEncoder {
         	return;
         }
         
-        video_st = avformat_new_stream(container, null);
+        /* open the output file */
+        ioc = new AVIOContext();
+        if ((fmt.flags() & AVFMT_NOFILE) == 0)
+        {
+            if ( file_name == null )
+            {
+                use_buffer = true;
+                _buffer = new BytePointer();
+                if ( avio_open_dyn_buf( ioc ) != 0 ) {
+                     IJ.log("Error opening memory buffer for encoding");
+                     return;
+                }
+            }
+            else if ( avio_open( ioc, file_name, AVIO_FLAG_WRITE ) < 0 ) {
+            	IJ.log("Error opening output video file");
+            	return;
+            }
+            container.pb(ioc);
+        }
+        
+        video_st = avformat_new_stream(container, codec);
         if (video_st == null) {
         	IJ.log("Error creating stream");
         	return;
         }
+        
+        video_st.id(container.nb_streams()-1);
+        //video_st.sample_aspect_ratio(pCtx.sample_aspect_ratio());
+        video_st.time_base(pCtx.time_base());
        
         if (avcodec_parameters_from_context(video_st.codecpar(), pCtx) < 0) {
         	IJ.log("avcodec_parameters_from_context failed");
         	return;
         }
-        
-        video_st.id(container.nb_streams()-1);
-        video_st.sample_aspect_ratio(pCtx.sample_aspect_ratio());
-        video_st.time_base(pCtx.time_base());
         
         /* Get framebuffers */
         if ( ( picture_yuv = av_frame_alloc() ) == null ) { // final frame format
@@ -167,26 +190,6 @@ public class FFMpegEncoder {
             IJ.log( "Error in scaling" ); return;
         }
 
-        /* open the output file */
-        AVIOContext ioc = new AVIOContext();
-        if ((fmt.flags() & AVFMT_NOFILE) == 0)
-        {
-            if ( file_name == null )
-            {
-                use_buffer = true;
-                _buffer = new BytePointer();
-                if ( avio_open_dyn_buf( ioc ) != 0 ) {
-                     IJ.log("Error opening memory buffer for encoding");
-                     return;
-                }
-            }
-            else if ( avio_open( ioc, file_name, AVIO_FLAG_WRITE ) < 0 ) {
-            	IJ.log("Error opening output video file");
-            	return;
-            }
-            container.pb(ioc);
-        }
-        
         avformat_write_header(container, codec_options);
     }
    
@@ -217,7 +220,7 @@ public class FFMpegEncoder {
     }
     
     void close() {
-    	int result = av_write_frame(container, (AVPacket)null); // flush
+    	int result = av_interleaved_write_frame(container, (AVPacket)null); // flush
         result = av_write_trailer(container);
         {
             if ( use_buffer )
@@ -240,6 +243,8 @@ public class FFMpegEncoder {
         if ( pCtx.codec_id() == AV_CODEC_ID_HEVC && picture != null )
             picture.pts(_frame_count);
         
+        _frame_count++;
+        
         int ret = 0;
         
         if (picture != null) {
@@ -248,7 +253,7 @@ public class FFMpegEncoder {
         		BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
         		avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
         		//System.out.println("Can not send frame:"+ep.getString());
-        		//IJ.log("frame: "+ _frame_count +"    send_error: "+ret);
+        		IJ.log("frame: "+ _encoded_frames +"    send_error: "+ret);
         		return;
         	}
         } else {
@@ -260,35 +265,35 @@ public class FFMpegEncoder {
             BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
             avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
             //System.out.println("Can not receive  packet:"+ep.getString());
-            //IJ.log("frame: "+ _frame_count +"    receive_error: "+ret);
+            IJ.log("frame: "+ _encoded_frames +"    receive_error: "+ret);
             return;
         }
         
         if (!packet.isNull()) {
         	//System.out.println("Succeed to encode one frame \tsize"+packet.size());
         	
-            _encoded_frames++;
             if ( pCtx.codec_id() == AV_CODEC_ID_HEVC )
             {
                 if (packet.pts() == AV_NOPTS_VALUE && (pCtx.codec().capabilities() & AV_CODEC_CAP_DELAY) == 0)
-                    packet.pts(_frame_count);
-
-                av_packet_rescale_ts(packet, pCtx.time_base(), video_st.time_base());
+                    packet.pts(_encoded_frames);
+                
                 packet.stream_index(video_st.index());
+                av_packet_rescale_ts(packet, pCtx.time_base(), video_st.time_base());
             }
+            _encoded_frames++;
 
+            IJ.log("frame: "+ _encoded_frames +"  packet size: "+packet.size()+"  pts: "+packet.pts()+"  dts: "+packet.dts());
             int result = av_interleaved_write_frame(container, packet);
-            //IJ.log("frame: "+ _frame_count +"    packet size: "+packet.size());
+            
             av_packet_unref(packet);
         }
-
-        _frame_count++;
     }
     
     int encoded_frames() { return _encoded_frames; }
 
     private AVFormatContext container;
     private AVCodecContext pCtx;
+    private AVIOContext ioc;
     private AVStream video_st;
     private AVFrame picture_yuv;
     private AVFrame picture_rgb;
