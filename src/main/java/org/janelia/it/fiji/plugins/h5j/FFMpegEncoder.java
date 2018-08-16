@@ -253,7 +253,7 @@ public class FFMpegEncoder {
         		BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
         		avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
         		//System.out.println("Can not send frame:"+ep.getString());
-        		IJ.log("frame: "+ _encoded_frames +"    send_error: "+ret);
+        		//IJ.log("frame: "+ _encoded_frames +"    send_error: "+ret);
         		return;
         	}
         } else {
@@ -265,7 +265,7 @@ public class FFMpegEncoder {
             BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
             avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
             //System.out.println("Can not receive  packet:"+ep.getString());
-            IJ.log("frame: "+ _encoded_frames +"    receive_error: "+ret);
+            //IJ.log("frame: "+ _encoded_frames +"    receive_error: "+ret);
             return;
         }
         
