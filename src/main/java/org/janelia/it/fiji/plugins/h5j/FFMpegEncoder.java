@@ -80,7 +80,7 @@ public class FFMpegEncoder {
         pCtx.height(height);
         pCtx.bit_rate(width*height*4);
         pCtx.gop_size(12);
-        pCtx.time_base(new AVRational().num(1000).den(25000));
+        pCtx.time_base(new AVRational().num(1).den(25));
         if ((fmt.flags() & AVFMT_GLOBALHEADER) > 0)
             pCtx.flags(AV_CODEC_FLAG_GLOBAL_HEADER);
         pCtx.strict_std_compliance(AVCodecContext.FF_COMPLIANCE_EXPERIMENTAL);
@@ -220,7 +220,7 @@ public class FFMpegEncoder {
     }
     
     void close() {
-    	int result = av_interleaved_write_frame(container, (AVPacket)null); // flush
+    	int result = av_write_frame(container, (AVPacket)null); // flush
         result = av_write_trailer(container);
         {
             if ( use_buffer )
@@ -236,14 +236,14 @@ public class FFMpegEncoder {
     
     void encode( AVFrame picture ) {
     	AVPacket packet = new AVPacket();
+        av_init_packet(packet);
         packet.data(null);
         packet.size(0);
-        av_init_packet(packet);
 
-        if ( pCtx.codec_id() == AV_CODEC_ID_HEVC && picture != null )
+        if ( pCtx.codec_id() == AV_CODEC_ID_HEVC && picture != null ) {
             picture.pts(_frame_count);
-        
-        _frame_count++;
+            _frame_count++;
+        }
         
         int ret = 0;
         
@@ -274,16 +274,17 @@ public class FFMpegEncoder {
         	
             if ( pCtx.codec_id() == AV_CODEC_ID_HEVC )
             {
-                if (packet.pts() == AV_NOPTS_VALUE && (pCtx.codec().capabilities() & AV_CODEC_CAP_DELAY) == 0)
+                if (packet.pts() == AV_NOPTS_VALUE && (pCtx.codec().capabilities() & AV_CODEC_CAP_DELAY) == 0) 
                     packet.pts(_encoded_frames);
                 
                 packet.stream_index(video_st.index());
                 av_packet_rescale_ts(packet, pCtx.time_base(), video_st.time_base());
+                packet.duration(packet.pts()-packet.dts());
             }
             _encoded_frames++;
-
-            IJ.log("frame: "+ _encoded_frames +"  packet size: "+packet.size()+"  pts: "+packet.pts()+"  dts: "+packet.dts());
-            int result = av_interleaved_write_frame(container, packet);
+            
+            //IJ.log("frame: "+ _encoded_frames +"  packet size: "+packet.size()+"  pts: "+packet.pts()+"  dts: "+packet.dts()+"  d: "+packet.duration());
+            int result = av_write_frame(container, packet);
             
             av_packet_unref(packet);
         }
