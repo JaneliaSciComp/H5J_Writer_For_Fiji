@@ -98,7 +98,7 @@ public class FFMpegEncoder {
         {
             case AV_CODEC_ID_HEVC:
             {
-            	av_dict_set( codec_options, "preset", "veryslow", 0 );
+            	av_dict_set( codec_options, "preset", "medium", 0 );
                 av_dict_set( codec_options, "x265-params", options, 0 );
                 IJ.log("CodecID: AV_CODEC_ID_HEVC");
                 break;
@@ -279,7 +279,7 @@ public class FFMpegEncoder {
                 
                 packet.stream_index(video_st.index());
                 av_packet_rescale_ts(packet, pCtx.time_base(), video_st.time_base());
-                packet.duration(packet.pts()-packet.dts());
+                //packet.duration(packet.pts()-packet.dts());
             }
             _encoded_frames++;
             

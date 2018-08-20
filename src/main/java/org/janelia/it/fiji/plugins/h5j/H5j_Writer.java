@@ -223,6 +223,8 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         				encoder.write_frame();
         				current_slice++;
         				IJ.showProgress(current_slice / total_slices);
+        				if (z == d-1)
+        					encoder.write_frame();
         			}
         		} else {
         			for ( int z = 0; z < d; z++ )
@@ -244,10 +246,12 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         				encoder.write_frame();
         				current_slice++;
         				IJ.showProgress(current_slice / total_slices);
+        				if (z == d-1)
+        					encoder.write_frame();
         			}
         		}
         		
-                for ( int rem = encoder.encoded_frames(); rem < d; rem++ )
+                for ( int rem = encoder.encoded_frames(); rem < d+1; rem++ )
                     encoder.encode(null);
 
                 encoder.close();
