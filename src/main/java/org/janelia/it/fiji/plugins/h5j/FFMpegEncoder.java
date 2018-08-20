@@ -40,7 +40,7 @@ public class FFMpegEncoder {
         av_register_all();
         avformat_network_init();
         
-        av_log_set_level(AV_LOG_TRACE);
+        //av_log_set_level(AV_LOG_TRACE);
         
         AVCodec codec = avcodec_find_encoder_by_name(codec_name);
         if (null == codec) {
@@ -100,7 +100,7 @@ public class FFMpegEncoder {
             {
             	av_dict_set( codec_options, "preset", "medium", 0 );
                 av_dict_set( codec_options, "x265-params", options, 0 );
-                IJ.log("CodecID: AV_CODEC_ID_HEVC");
+                //IJ.log("CodecID: AV_CODEC_ID_HEVC");
                 break;
             }
         }
