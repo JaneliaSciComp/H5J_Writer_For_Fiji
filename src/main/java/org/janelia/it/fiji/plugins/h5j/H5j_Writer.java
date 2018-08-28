@@ -149,9 +149,8 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
     		int d = dims[3];
     		int nFrame = dims[4];
     		int bdepth = img.getBitDepth();
-    		double spcx = finfo.pixelWidth;
-    		double spcy = finfo.pixelHeight;
-    		double spcz = finfo.pixelDepth;
+    		double[] vx_size = {finfo.pixelWidth, finfo.pixelHeight, finfo.pixelDepth};
+    		double[] im_size = {w*vx_size[0], h*vx_size[1], d*vx_size[2]};
     		String unit = finfo.unit != null ? finfo.unit : "";
     		
     		ImageStack stack = img.getStack();
@@ -176,15 +175,15 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
             long pad_right = ( scaledWidth - w ) ;
             long pad_bottom = ( scaledHeight - h );
             
+            writer.float64().setArrayAttr("/", "image_size", im_size);
+            writer.float64().setArrayAttr("/", "voxel_size", vx_size);
+            writer.string().setAttr("/", "unit", unit);
+            
             writer.int64().setAttr("/Channels", "width", w);
             writer.int64().setAttr("/Channels", "height", h);
             writer.int64().setAttr("/Channels", "frames", d);
             writer.int64().setAttr("/Channels", "pad_right", pad_right);
             writer.int64().setAttr("/Channels", "pad_bottom", pad_bottom);
-            writer.float64().setAttr("/Channels", "spcx", spcx);
-            writer.float64().setAttr("/Channels", "spcy", spcy);
-            writer.float64().setAttr("/Channels", "spcz", spcz);
-            writer.string().setAttr("/Channels", "unit", unit);
             
             String options = (bdepth == 8 ? "crf=15:psy-rd=1.0" : "crf=7:psy-rd=1.0");
             
