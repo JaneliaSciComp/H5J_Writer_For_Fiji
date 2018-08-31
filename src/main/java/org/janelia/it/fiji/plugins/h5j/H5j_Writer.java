@@ -26,7 +26,7 @@ import org.apache.commons.io.FileUtils;
 
 import ch.systemsx.cisd.hdf5.*;
 
-public class H5J_Writer implements PlugInFilter {
+public class H5j_Writer implements PlugInFilter {
     
     private static final String MESSAGE_PREFIX = "HHMI_H5J_Writer: ";
     private static final String EXTENSION = ".h5j";
