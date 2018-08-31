@@ -1,59 +1,40 @@
 /*
- * Copyright 2015 Howard Hughes Medical Institute.
+ * Copyright 2018 Howard Hughes Medical Institute.
  * All rights reserved.
  * Use is subject to Janelia Farm Research Campus Software Copyright 1.1
  * license terms ( http://license.janelia.org/license/jfrc_copyright_1_1.html ).
  */
-
 package org.janelia.it.fiji.plugins.h5j;
 
 import ij.IJ;
+import ij.Macro;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.io.FileInfo;
-import ij.io.SaveDialog;
+import ij.io.*;
+import ij.gui.*;
 import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
 
-import java.io.File;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.io.*;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-
-import org.bytedeco.javacpp.*;
-
-import static org.bytedeco.javacpp.avcodec.*;
-import static org.bytedeco.javacpp.avfilter.*;
-import static org.bytedeco.javacpp.avformat.*;
-import static org.bytedeco.javacpp.avutil.*;
-import static org.bytedeco.javacpp.presets.avutil.AVERROR_EAGAIN;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.FileUtils;
 
 import ch.systemsx.cisd.hdf5.*;
 
-/**
- * Reader for HHMI HDF 5 writer.  Consumes H.265-compressed data.
- *
- * @author takashi
- */
-public class H5j_Writer extends ImagePlus implements PlugInFilter {
+public class H5J_Writer implements PlugInFilter {
     
     private static final String MESSAGE_PREFIX = "HHMI_H5J_Writer: ";
     private static final String EXTENSION = ".h5j";
     public static final String INFO_PROPERTY = "Info";
     
     ImagePlus m_imp;
-    
-    static void check(int err) {
-        if (err < 0) {
-            BytePointer e = new BytePointer(512);
-            av_strerror(err, e, 512);
-            throw new RuntimeException(e.getString().substring(0, (int) BytePointer.strlen(e)) + ":" + err);
-        }
-    }
+
+    boolean isUnix = true;
     
     public int setup(String arg, ImagePlus imp) {
 		this.m_imp = imp;
@@ -67,54 +48,27 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         String filename = sd.getFileName();
         if (filename == null)
 			return;
-    	saveStackHDF5(directory+filename, m_imp);
-    }
 
-	public boolean saveStackFFMpeg(String file_name, ImagePlus img)
-    {
-		int[] dims = img.getDimensions();
-		int w = dims[0];
-		int h = dims[1];
-		int nCh = dims[2];
-		int d = dims[3];
-		int nFrame = dims[4];
-		int bdepth = img.getBitDepth();
-		ImageStack stack = img.getStack();
-		ImageProcessor[] iplist = new ImageProcessor[d*nCh];
-
-		for ( int c = 0; c < nCh; ++c ) {
-			for ( int z = 0; z < d; ++z ) {
-				iplist[c*d + z] = stack.getProcessor(img.getStackIndex(c+1, z+1, 1));
+		String options = Macro.getOptions();
+		int threads = 0;
+		if (options != null) {
+			String [] arguments = options.split(" ");
+			for (String s : arguments) {
+				String [] p = s.split("=");
+				if (p == null) continue;
+				if (p[0].equals("threads") && p.length >= 2) {
+					threads = Integer.parseInt(p[1]);
+				}
 			}
 		}
+		//IJ.log("threads: "+threads);
+
+		String os = System.getProperty("os.name");
+		if (os.contains("Windows")) 
+			isUnix = false;
 		
-		double default_irange = 1.0; // assumes data range is 0-255.0
-		if ( bdepth > 8 )
-            IJ.run(img, "Multiply...", "value=16"); // 0-4096, like our microscope images
-		List<Double> imin = new ArrayList<>(Collections.nCopies(nCh, 0.0));
-		List<Double> irange2 = new ArrayList<>(Collections.nCopies(nCh, default_irange));
-
-        FFMpegEncoder encoder = new FFMpegEncoder( file_name, w, h, bdepth, "libx265", "crf=7:psy-rd=1.0" );
-		for ( int z = 0; z < d; ++z ) {
-                for ( int y = 0; y < h; ++y ) {
-                    for ( int x = 0; x < w; ++x ) {
-                    	int spxid = y*w + x;
-                        for ( int c = 0; c < 3; ++c ) {
-                            int ic = c;
-                            if ( c >= nCh ) ic = 0; // single channel volume to gray RGB movie
-                            double val = iplist[ic*d + z].getf(spxid);
-                            val = ( val - imin.get(ic) ) * irange2.get(ic); // rescale to range 0-255
-                            encoder.setPixelIntensity( x, y, c, ( byte )val );
-                        }
-                    }
-                }
-                encoder.write_frame();
-            }
-
-            encoder.close();
-
-            return true;
-	}
+    	saveStackHDF5(directory+filename, m_imp, threads);
+    }
 
 	int nearestPowerOfEight(int val) {
 		int lb = val >> 3 << 3;
@@ -123,23 +77,10 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
 		return (lb == val) ? lb : ub;
 	}
 
-	boolean saveStackHDF5(String fileName, ImagePlus img)
+	boolean saveStackHDF5(String fileName, ImagePlus img, int threadnum)
     {
         try {
-        	/*
-    		//String ffmpeg_dir = IJ.getDirectory("startup") + "ffmpeg/";
-    		URLClassLoader cl = (URLClassLoader) ClassLoader.getSystemClassLoader();
-        	//Class<?> ccl = URLClassLoader.class;
-        	//Method methodAddUrl = ccl.getDeclaredMethod("addURL", URL.class);
-        	//methodAddUrl.setAccessible(true);
-        	//methodAddUrl.invoke(cl, new File(ffmpeg_dir+"javacpp-1.4.1").toURI().toURL());
-        	//methodAddUrl.invoke(cl, new File(ffmpeg_dir+"ffmpeg-4.0-1.4.2-macosx-x86_64.jar").toURI().toURL());
-        	//methodAddUrl.invoke(cl, new File(ffmpeg_dir+"ffmpeg-4.0-1.4.2.jar").toURI().toURL());
-        	URL[] urls = cl.getURLs();
-        	for (URL u : urls) {
-        		System.out.println(u.toString());
-        	}
-        	*/
+
         	FileInfo finfo = img.getFileInfo();
     		if(finfo == null) return false;
         	int[] dims = img.getDimensions();
@@ -155,7 +96,7 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
     		
     		ImageStack stack = img.getStack();
     		ImageProcessor[] iplist = new ImageProcessor[d*nCh];
-
+	
     		for ( int c = 0; c < nCh; ++c ) {
     			for ( int z = 0; z < d; ++z ) {
     				iplist[c*d + z] = stack.getProcessor(img.getStackIndex(c+1, z+1, 1));
@@ -168,13 +109,15 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
     		final IHDF5Writer writer = HDF5Factory.open( h5file );
             writer.object().createGroup("/Channels");
 
-            long scaledHeight = nearestPowerOfEight( h );
-            long scaledWidth = nearestPowerOfEight( w );
+            int scaledHeight = nearestPowerOfEight( h );
+            int scaledWidth = nearestPowerOfEight( w );
+
+            ImagePlus tmpimp = NewImage.createImage("slice", scaledWidth, scaledHeight, 1, bdepth, NewImage.FILL_BLACK);
 
             // Initialize the upper and lower bounds
-            long pad_right = ( scaledWidth - w ) ;
-            long pad_bottom = ( scaledHeight - h );
-            
+            int pad_right = ( scaledWidth - w ) ;
+            int pad_bottom = ( scaledHeight - h );
+			
             writer.float64().setArrayAttr("/", "image_size", im_size);
             writer.float64().setArrayAttr("/", "voxel_size", vx_size);
             writer.string().setAttr("/", "unit", unit);
@@ -185,86 +128,87 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
             writer.int64().setAttr("/Channels", "pad_right", pad_right);
             writer.int64().setAttr("/Channels", "pad_bottom", pad_bottom);
             
-            String options = (bdepth == 8 ? "crf=15:psy-rd=1.0" : "crf=7:psy-rd=1.0");
+            String options = (bdepth == 8 ? "crf=15" : "crf=7") + ":psy-rd=1.0";
+            if (threadnum > 0) options += ":pools="+threadnum;
+            Path myTempDir = Files.createTempDirectory(null);
+            String tdir = myTempDir.toString() + "/";
             
-            double total_slices = nCh*d;
-            long current_slice = 0;
-            IJ.showProgress(current_slice / total_slices);
             for ( int c = 0; c < nCh; c++ )
             {
+            	IJ.showProgress((double)c / nCh);
                 double default_irange = 1.0; // assumes data range is 0-255.0
                 List<Double> imin = new ArrayList<>(Collections.nCopies(nCh, 0.0));
         		List<Double> irange2 = new ArrayList<>(Collections.nCopies(nCh, default_irange));
-        		FFMpegEncoder encoder = new FFMpegEncoder( (String)null, (int)scaledWidth, (int)scaledHeight, bdepth, "libx265", options );
-                // If the image needs padding, fill the expanded border regions with black
-        		if (bdepth == 8) {
-        			for ( int z = 0; z < d; z++ )
-        			{
-        				for ( int y = 0; y < scaledHeight; y++ )
-        				{
-        					for ( int x = 0; x < scaledWidth; x++ )
-        					{
-        						// If inside the area with valid data
-        						if ( x < w && y < h )
-        						{
-        							int ic = c;
-        							if ( c >= nCh ) ic = 0; // single channel volume to gray RGB movie
-        							double val = iplist[ic*d + z].getf(y*w + x);
-        							val = ( val - imin.get(ic) ) * irange2.get(ic); // rescale to range 0-255
-        							for ( int cc = 0; cc < 3; ++cc )
-        								encoder.setPixelIntensity( x, y, cc, (byte)val );
-        						}
-        						else
-        							for ( int cc = 0; cc < 3; ++cc )
-        								encoder.setPixelIntensity( x, y, cc, (byte)0 );
-        					}
-        				}
-        				encoder.write_frame();
-        				current_slice++;
-        				IJ.showProgress(current_slice / total_slices);
-        				if (z == d-1)
-        					encoder.write_frame();
-        			}
-        		} else {
-        			for ( int z = 0; z < d; z++ )
-        			{
-        				for ( int y = 0; y < scaledHeight; y++ )
-        				{
-        					for ( int x = 0; x < scaledWidth; x++ )
-        					{
-        						// If inside the area with valid data
-        						if ( x < w && y < h )
-        						{
-        							double val = iplist[c*d + z].getf(y*w + x) * 16;
-        							encoder.setPixelIntensity( x, y, (short)val );
-        						}
-        						else
-        							encoder.setPixelIntensity( x, y, (short)0 );
-        					}
-        				}
-        				encoder.write_frame();
-        				current_slice++;
-        				IJ.showProgress(current_slice / total_slices);
-        				if (z == d-1)
-        					encoder.write_frame();
-        			}
-        		}
-        		
-                for ( int rem = encoder.encoded_frames(); rem < d+1; rem++ )
-                    encoder.encode(null);
 
-                encoder.close();
-                byte[] arr = new byte[encoder.buffer_size()];
-                encoder.buffer().get(arr);
+		        String imageseq_path = tdir + "z%05d.tiff";
+		        String video_path = tdir + "v.mp4";
+		        //IJ.log(imageseq_path);
+		        
+					if (bdepth == 8) {
+						int slicesize = w*h;
+						ImageProcessor tmpip = tmpimp.getProcessor();
+        				for ( int z = 0; z < d; z++ ) {
+        					for ( int y = 0; y < h; y++ ) {
+        						for ( int x = 0; x < w; x++ )
+        							tmpip.setf(y*scaledWidth+x, iplist[c*d + z].getf(y*w+x));
+        					}
+        					FileInfo sfinfo = tmpimp.getFileInfo();
+        					String path = tdir + String.format("z%05d", z) + ".tiff";
+        					BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(path));
+        					TiffEncoder enc = new TiffEncoder(sfinfo);
+        					enc.write(output);
+        					output.close();
+        				}
+        			} else {
+        				int slicesize = w*h;
+        				ImageProcessor tmpip = tmpimp.getProcessor();
+        				for ( int z = 0; z < d; z++ ) {
+        					for ( int y = 0; y < h; y++ ) {
+        						for ( int x = 0; x < w; x++ )
+        							tmpip.setf(y*scaledWidth+x, iplist[c*d + z].getf(y*w+x) * 16); //scale from glay12 to glay16
+        					}
+        					FileInfo sfinfo = tmpimp.getFileInfo();
+        					String path = tdir + String.format("z%05d", z) + ".tiff";
+        					BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(path));
+        					TiffEncoder enc = new TiffEncoder(sfinfo);
+        					enc.write(output);
+        					output.close();
+        				}
+        			}
+
+				String[] listCommands = {
+					IJ.getDirectory("plugins")+"/ffmpeg",
+					"-y",
+					"-i", imageseq_path,
+					"-pix_fmt", (bdepth == 8 ? "yuv444p" : "gray12"),
+					"-c:v", "libx265",
+					"-preset", "medium",
+					"-x265-params", options,
+					video_path
+				};
+
+				FFMPEGThread ffmpeg = new FFMPEGThread(listCommands);
+        		ffmpeg.start();
+        		
+        		ffmpeg.join();
+
+        		//IJ.log(ffmpeg.getStdOut());
+        		//IJ.log(ffmpeg.getStdErr());
+        		
+				File vdf = new File(video_path);
+                byte[] arr = IOUtils.toByteArray(new BufferedInputStream(new FileInputStream(vdf)));
                 String dataset_path = "/Channels/Channel_" + c;
                 writer.int8().createArray(dataset_path, arr.length);
                 writer.int8().writeArray(dataset_path, arr);
-
-                //IJ.log("Channel_"+c+":  Encoded channel is " + encoder.buffer_size() + " bytes.");
-                //IJ.log("Done");
             }
+            
+            IJ.showProgress(1.0);
             writer.file().flush();
             writer.close();
+
+			FileUtils.deleteDirectory(new File(myTempDir.toString()));
+            tmpimp.close();
+
             return true;
         }catch(Exception e){
         	e.printStackTrace();
@@ -272,5 +216,32 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
 
         return false;
 	}
-    
+
+    class FFMPEGThread extends Thread{
+        String[] command;
+        StringBuffer stdout_sb = new StringBuffer();
+        StringBuffer stderr_sb = new StringBuffer();
+        FFMPEGThread(String[] command){        
+            this.command=command;            
+        }
+        public void run(){      
+			try{          
+				String s = null;
+                Process process = new ProcessBuilder(command).start();                
+                BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                BufferedReader stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+                // read the output from the command                    
+                while ((s = stdInput.readLine()) != null)
+                    stdout_sb.append(s+"\n");
+                stdInput.close();
+                // read any errors from the attempted command                
+                while ((s = stdError.readLine()) != null)
+                    stderr_sb.append(s+"\n");    
+            }catch(Exception ex){
+                System.out.println(ex.toString());
+            }
+        }
+        public String getStdOut() { return stdout_sb.toString(); }
+        public String getStdErr() { return stderr_sb.toString(); }
+    }
 }
