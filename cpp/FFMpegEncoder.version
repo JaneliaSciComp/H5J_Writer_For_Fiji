@@ -1,0 +1,4 @@
+FFMPEGENCODER_1.0 {
+global: FFMpegEncoder_*;
+local: *;
+};

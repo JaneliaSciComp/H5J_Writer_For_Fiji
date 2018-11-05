@@ -2,15 +2,21 @@ package org.janelia.it.fiji.plugins.h5j;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
@@ -64,13 +70,79 @@ public class FFMpegEncoder
 			        	String[] sp = name.split("/");
 						String basename = sp[sp.length-1];
 			        	File file = new File(dir.getPath() + File.separator + basename);
-			        	if (!file.exists()) {
-							if (!dir.exists())
-								dir.mkdirs();
-							InputStream is = jar.getInputStream(entry);
-							Files.copy(is, file.getAbsoluteFile().toPath());
-							is.close();
-			        	}
+						if (!file.exists()) {
+							File lockFile = new File(dirpath, ".lock");
+							FileChannel lockChannel = null;
+							FileLock lock = null;
+							ReentrantLock threadLock = null;
+							try {
+								if (!dir.exists())
+									dir.mkdirs();
+								threadLock = new ReentrantLock();
+								threadLock.lock();
+								lockChannel = new FileOutputStream(lockFile).getChannel();
+								lock = lockChannel.lock();
+								InputStream is = jar.getInputStream(entry);
+								Files.copy(is, file.getAbsoluteFile().toPath());
+								is.close();
+							} catch (IOException | RuntimeException e) {
+								System.err.println("Could not extract resource file" + basename + ": " + e);
+							} finally {
+								if (lock != null)
+									lock.release();
+								if (lockChannel != null)
+									lockChannel.close();
+								if (threadLock != null)
+									threadLock.unlock();
+							}
+						}
+						
+						//create symbolic links
+						if ((SystemUtils.IS_OS_MAC_OSX || SystemUtils.IS_OS_LINUX) && !basename.endsWith(".so") && file.exists()) {
+							String[] strs = basename.split("\\.so\\.");
+							if (strs.length > 1) {
+								String linkname = strs[0]+".so";
+								String[] strs2 = strs[1].split("\\.");
+								for (int i = 0; i < strs2.length; i++) {
+									File linkfile = new File(dir.getPath() + File.separator + linkname);
+									Path path = linkfile.toPath(), targetpath = Paths.get(file.getAbsolutePath());
+									if (!linkfile.exists() || !Files.isSymbolicLink(path) || !Files.readSymbolicLink(path).equals(targetpath)) {
+										File lockFile = new File(dirpath, ".lock");
+										FileChannel lockChannel = null;
+										FileLock lock = null;
+										ReentrantLock threadLock = null;
+										try {
+											threadLock = new ReentrantLock();
+											threadLock.lock();
+											lockChannel = new FileOutputStream(lockFile).getChannel();
+											lock = lockChannel.lock();
+											if (!linkfile.exists() || !Files.isSymbolicLink(path)
+													|| !Files.readSymbolicLink(path).equals(targetpath)) {
+												try {
+													linkfile.getParentFile().mkdirs();
+													Files.createSymbolicLink(path, targetpath);
+												} catch (java.nio.file.FileAlreadyExistsException e) {
+													file.delete();
+													Files.createSymbolicLink(path, targetpath);
+												}
+											}
+										} catch (IOException | RuntimeException e) {
+											System.err.println("Could not create symbolic link " + basename + ": " + e);
+										} finally {
+											if (lock != null)
+												lock.release();
+											if (lockChannel != null)
+												lockChannel.close();
+											if (threadLock != null)
+												threadLock.unlock();
+										}
+									}
+									linkname += "." + strs2[i];
+								}
+								
+							}
+						}
+						
 			            //System.out.println(basename + " : " + name);
 			        }
 			    }
