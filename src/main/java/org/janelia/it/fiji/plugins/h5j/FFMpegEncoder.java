@@ -5,9 +5,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 
 import com.sun.jna.Library;
 import com.sun.jna.Native;
@@ -29,7 +35,7 @@ public class FFMpegEncoder
 			File dir = new File(dirpath);
 			File lib = null;
 			String libname = "libFFMpegEncoder";
-			String rsdir = "lib/";
+			String rsdir = "org/janelia/it/fiji/plugins/h5j/lib/";
 			
 			if (SystemUtils.IS_OS_WINDOWS) {
 				libname += ".dll";
@@ -44,26 +50,33 @@ public class FFMpegEncoder
 				lib = new File(dir.getPath() + File.separator + libname);
 				rsdir += "linux/";
 			}
-			System.out.println(lib.getPath());
+			//System.out.println(lib.getPath());
 			
-			List<String> filenames = new ArrayList<>();
-			InputStream in = FFMpegEncoder.class.getResourceAsStream(rsdir);
-			BufferedReader br = new BufferedReader(new InputStreamReader(in));
-			String resource;
-			while ((resource = br.readLine()) != null) {
-				filenames.add(resource);
-			}
-			for (String filename : filenames) {
-				File file = new File(dir.getPath() + File.separator + filename);
-				if (!file.exists()) {
-					if (!dir.exists())
-						dir.mkdirs();
-					InputStream is = FFMpegEncoder.class.getResourceAsStream(rsdir + filename);
-					Files.copy(is, file.getAbsoluteFile().toPath());
-					is.close();
-				}
-			}
+			final File jarFile = new File(FFMpegEncoder.class.getProtectionDomain().getCodeSource().getLocation().getPath());
 
+			if(jarFile.isFile()) {  // Run with JAR file
+			    final JarFile jar = new JarFile(jarFile);
+			    final Enumeration<JarEntry> entries = jar.entries(); //gives ALL entries in jar
+			    while(entries.hasMoreElements()) {
+			    	JarEntry entry = entries.nextElement();
+			    	final String name = entry.getName();
+			        if (name.startsWith(rsdir) && !name.endsWith("/")) { //filter according to the path
+			        	String[] sp = name.split("/");
+						String basename = sp[sp.length-1];
+			        	File file = new File(dir.getPath() + File.separator + basename);
+			        	if (!file.exists()) {
+							if (!dir.exists())
+								dir.mkdirs();
+							InputStream is = jar.getInputStream(entry);
+							Files.copy(is, file.getAbsoluteFile().toPath());
+							is.close();
+			        	}
+			            //System.out.println(basename + " : " + name);
+			        }
+			    }
+			    jar.close();
+			}
+			
 			String libpaths = System.getProperty("java.library.path");
 			libpaths = libpaths + ";" + dir.getAbsolutePath();
 			System.setProperty("java.library.path", libpaths);
