@@ -48,7 +48,7 @@ public class FFMpegEncoder
 				lib = new File(dir.getPath() + File.separator + libname);
 				rsdir += "win64/";
 			} else if (SystemUtils.IS_OS_MAC_OSX) {
-				libname += ".so";
+				libname += ".dylib";
 				lib = new File(dir.getPath() + File.separator + libname);
 				rsdir += "macosx/";
 			} else if (SystemUtils.IS_OS_LINUX) {
@@ -98,52 +98,66 @@ public class FFMpegEncoder
 						}
 						
 						//create symbolic links
-						if ((SystemUtils.IS_OS_MAC_OSX || SystemUtils.IS_OS_LINUX) && !basename.endsWith(".so") && file.exists()) {
-							String[] strs = basename.split("\\.so\\.");
-							if (strs.length > 1) {
-								String linkname = strs[0]+".so";
-								String[] strs2 = strs[1].split("\\.");
-								for (int i = 0; i < strs2.length; i++) {
-									File linkfile = new File(dir.getPath() + File.separator + linkname);
-									Path path = linkfile.toPath(), targetpath = Paths.get(file.getAbsolutePath());
-									if (!linkfile.exists() || !Files.isSymbolicLink(path) || !Files.readSymbolicLink(path).equals(targetpath)) {
-										File lockFile = new File(dirpath, ".lock");
-										FileChannel lockChannel = null;
-										FileLock lock = null;
-										ReentrantLock threadLock = null;
-										try {
-											threadLock = new ReentrantLock();
-											threadLock.lock();
-											lockChannel = new FileOutputStream(lockFile).getChannel();
-											lock = lockChannel.lock();
-											if (!linkfile.exists() || !Files.isSymbolicLink(path)
-													|| !Files.readSymbolicLink(path).equals(targetpath)) {
-												try {
-													linkfile.getParentFile().mkdirs();
-													Files.createSymbolicLink(path, targetpath);
-												} catch (java.nio.file.FileAlreadyExistsException e) {
-													file.delete();
-													Files.createSymbolicLink(path, targetpath);
-												}
-											}
-										} catch (IOException | RuntimeException e) {
-											System.err.println("Could not create symbolic link " + basename + ": " + e);
-										} finally {
-											if (lock != null)
-												lock.release();
-											if (lockChannel != null)
-												lockChannel.close();
-											if (threadLock != null)
-												threadLock.unlock();
-										}
-									}
-									linkname += "." + strs2[i];
+						ArrayList<String> linklist = new ArrayList<String>();
+						if (SystemUtils.IS_OS_MAC_OSX) {
+							String[] strs = basename.split("\\.");
+							if (strs.length > 2 && strs[strs.length-1].equals("dylib")) {
+								String str = strs[0];
+								for (int i = 1; i < strs.length-1; i++) {
+									linklist.add(str+".dylib");
+									str += "."+strs[i];
 								}
-								
+							}
+						}else if (SystemUtils.IS_OS_LINUX) {
+							if (!basename.endsWith(".so")) {
+								String[] strs = basename.split("\\.so\\.");
+								if (strs.length > 1) {
+									String linkname = strs[0]+".so";
+									String[] strs2 = strs[1].split("\\.");
+									for (int i = 0; i < strs2.length; i++) {
+										linklist.add(linkname);
+										linkname += "."+strs2[i];
+									}
+								}
 							}
 						}
-						
-			            //System.out.println(basename + " : " + name);
+						for (int i = 0; i < linklist.size(); i++) {
+							File linkfile = new File(dir.getPath() + File.separator + linklist.get(i));
+							Path path = linkfile.toPath(), targetpath = Paths.get(file.getAbsolutePath());
+							if (!linkfile.exists() || !Files.isSymbolicLink(path)
+									|| !Files.readSymbolicLink(path).equals(targetpath)) {
+								File lockFile = new File(dirpath, ".lock");
+								FileChannel lockChannel = null;
+								FileLock lock = null;
+								ReentrantLock threadLock = null;
+								try {
+									threadLock = new ReentrantLock();
+									threadLock.lock();
+									lockChannel = new FileOutputStream(lockFile).getChannel();
+									lock = lockChannel.lock();
+									if (!linkfile.exists() || !Files.isSymbolicLink(path)
+											|| !Files.readSymbolicLink(path).equals(targetpath)) {
+										try {
+											linkfile.getParentFile().mkdirs();
+											Files.createSymbolicLink(path, targetpath);
+										} catch (java.nio.file.FileAlreadyExistsException e) {
+											file.delete();
+											Files.createSymbolicLink(path, targetpath);
+										}
+									}
+								} catch (IOException | RuntimeException e) {
+									System.err.println("Could not create symbolic link " + basename + ": " + e);
+								} finally {
+									if (lock != null)
+										lock.release();
+									if (lockChannel != null)
+										lockChannel.close();
+									if (threadLock != null)
+										threadLock.unlock();
+								}
+							}
+						}
+						// System.out.println(basename + " : " + name);
 			        }
 			    }
 			    jar.close();

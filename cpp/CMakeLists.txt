@@ -93,11 +93,11 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 	#target_link_libraries(FFMpegTest -static)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	include_directories(${FFMpegEncoder_SOURCE_DIR}/ffmpeg/include)
-	file(GLOB FFMPEG_LIBRARIES ${FFMpegEncoder_SOURCE_DIR}/ffmpeg/lib/*.so)
+	file(GLOB FFMPEG_LIBRARIES ${FFMpegEncoder_SOURCE_DIR}/ffmpeg/lib/*.dylib)
 
 	add_library (FFMpegEncoder SHARED "FFMpegEncoder.cpp" "Wrapper.cpp")
 	add_executable(FFMpegTest "FFMpegTest.cpp")
-	set (CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-Wl,--version-script=${CMAKE_SOURCE_DIR}/FFMpegEncoder.version")
+    #set (CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-Wl,--version-script=${CMAKE_SOURCE_DIR}/FFMpegEncoder.version")
 
 	target_link_libraries(FFMpegEncoder PRIVATE ${FFMPEG_LIBRARIES})
 	#target_link_libraries(FFMpegEncoder PRIVATE -static)

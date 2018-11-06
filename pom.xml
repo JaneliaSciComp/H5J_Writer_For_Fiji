@@ -57,6 +57,13 @@
 			</roles>
 		</developer>
 	</developers>
+	<contributors>
+		<contributor>
+			<name>Mark Bolstad</name>
+			<url>https://github.com/renderdude</url>
+			<properties><id>renderdude</id></properties>
+		</contributor>
+	</contributors>
 
 	<mailingLists>
 		<mailingList>
