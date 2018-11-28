@@ -37,7 +37,7 @@ public class FFMpegEncoder
 	private static void load()
 	{
 		try {
-			String dirpath = getCacheDir().getAbsolutePath() + File.separator + "FFMpegEncoder-1.0.0" + File.separator;
+			String dirpath = getCacheDir().getAbsolutePath() + File.separator + "FFMpegEncoder-1.0.1" + File.separator;
 			File dir = new File(dirpath);
 			File lib = null;
 			String libname = "libFFMpegEncoder";

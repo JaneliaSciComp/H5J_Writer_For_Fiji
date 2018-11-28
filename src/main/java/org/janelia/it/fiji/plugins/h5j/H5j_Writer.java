@@ -120,9 +120,11 @@ public class H5j_Writer implements PlugInFilter {
 				}
 			}
 			
+			final int scaledHeight = nearestPowerOfEight(h);
+			final int scaledWidth = nearestPowerOfEight(w);
 			ArrayList<Pointer> tstack = new ArrayList<Pointer>();
 			for (int z = 0; z < d; ++z) {
-				Pointer slice = new Memory(w*h * Native.getNativeSize(bdepth == 8 ? Byte.TYPE : Short.TYPE));
+				Pointer slice = new Memory(scaledWidth * scaledHeight * Native.getNativeSize(bdepth == 8 ? Byte.TYPE : Short.TYPE));
 				tstack.add(slice);
 			}
 
@@ -131,9 +133,6 @@ public class H5j_Writer implements PlugInFilter {
 				h5file.delete();
 			final IHDF5Writer writer = HDF5Factory.open(h5file);
 			writer.object().createGroup("/Channels");
-
-			final int scaledHeight = nearestPowerOfEight(h);
-			final int scaledWidth = nearestPowerOfEight(w);
 
 			// Initialize the upper and lower bounds
 			int pad_right = (scaledWidth - w);

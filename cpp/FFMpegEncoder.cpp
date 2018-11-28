@@ -2,7 +2,7 @@
 #include "FFMpegEncoder.h"
 
 extern "C" {
-	#include <libavdevice/avdevice.h>
+#include <libavdevice/avdevice.h>
 }
 
 FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *codec_name, const char *options)
@@ -20,7 +20,7 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 	_height = height;
 	_bdepth = bdepth;
 	_allocated_slicenum = 100;
-	_slices = (void **)malloc( _allocated_slicenum * (bdepth==8 ? sizeof(char*) : sizeof(unsigned short*)) );
+	_slices = (void **)malloc(_allocated_slicenum * (bdepth == 8 ? sizeof(char*) : sizeof(unsigned short*)));
 
 	if (0 != (width % 2))
 		fprintf(stderr, "WARNING: Video width is not a multiple of 2");
@@ -48,8 +48,8 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 	}
 
 	AVOutputFormat *fmt = NULL;
-	if ( codec->id == AV_CODEC_ID_FFV1 )
-		fmt = av_guess_format( "mov", NULL, NULL );
+	if (codec->id == AV_CODEC_ID_FFV1)
+		fmt = av_guess_format("mov", NULL, NULL);
 	else
 		fmt = av_guess_format("mp4", NULL, NULL);
 	if (fmt == NULL)
@@ -60,11 +60,11 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 	container->oformat = fmt;
 
 	fmt->video_codec = codec->id;
-	
+
 	pCtx = avcodec_alloc_context3(codec);
 	pCtx->width = width;
 	pCtx->height = height;
-	pCtx->bit_rate = width*height*4;
+	pCtx->bit_rate = width * height * 4;
 	pCtx->gop_size = 12;
 	pCtx->time_base.num = 1; pCtx->time_base.den = 25;
 	if ((fmt->flags & AVFMT_GLOBALHEADER) > 0)
@@ -80,15 +80,15 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 	}
 
 	AVDictionary *codec_options = NULL;
-	switch ( pCtx->codec_id )
+	switch (pCtx->codec_id)
 	{
 	case AV_CODEC_ID_HEVC:
-		{
-			av_dict_set( &codec_options, "preset", "medium", 0 );
-			av_dict_set( &codec_options, "x265-params", options, 0 );
-			//fprintf(stderr, "CodecID: AV_CODEC_ID_HEVC");
-			break;
-		}
+	{
+		av_dict_set(&codec_options, "preset", "medium", 0);
+		av_dict_set(&codec_options, "x265-params", options, 0);
+		//fprintf(stderr, "CodecID: AV_CODEC_ID_HEVC");
+		break;
+	}
 	}
 
 	int err = 0;
@@ -102,7 +102,7 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 	if ((fmt->flags & AVFMT_NOFILE) == 0)
 	{
 		use_buffer = true;
-		if ( avio_open_dyn_buf( &ioc ) != 0 ) {
+		if (avio_open_dyn_buf(&ioc) != 0) {
 			fprintf(stderr, "Error opening memory buffer for encoding");
 			return;
 		}
@@ -120,28 +120,28 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 		return;
 	}
 
-	video_st->id = container->nb_streams-1;
+	video_st->id = container->nb_streams - 1;
 	//video_st->sample_aspect_ratio = pCtx->sample_aspect_ratio;
 	video_st->time_base = pCtx->time_base;
 
 
 	/* Get framebuffers */
-	if ( ( picture_yuv = av_frame_alloc() ) == NULL ) { // final frame format
+	if ((picture_yuv = av_frame_alloc()) == NULL) { // final frame format
 		fprintf(stderr, "av_frame_alloc (picture_yuv) failed"); return;
 	}
-	if ( ( picture_rgb = av_frame_alloc() ) == NULL ) { // rgb version I can understand easily
+	if ((picture_rgb = av_frame_alloc()) == NULL) { // rgb version I can understand easily
 		fprintf(stderr, "av_frame_alloc (picture_rgb) failed"); return;
 	}
 
 	/* the image can be allocated by any means and av_image_alloc() is
 	* just the most convenient way if av_malloc() is to be used */
-	if ( av_image_alloc(picture_yuv->data, picture_yuv->linesize,
-		pCtx->width, pCtx->height, pCtx->pix_fmt, 4) < 0 ) {
-			fprintf(stderr, "Error allocating YUV frame buffer"); return;
+	if (av_image_alloc(picture_yuv->data, picture_yuv->linesize,
+		pCtx->width, pCtx->height, pCtx->pix_fmt, 4) < 0) {
+		fprintf(stderr, "Error allocating YUV frame buffer"); return;
 	}
-	if ( av_image_alloc(picture_rgb->data, picture_rgb->linesize,
-		pCtx->width, pCtx->height, _raw_format, 4) < 0 ) {
-			fprintf(stderr, "Error allocating RGB frame buffer"); return;
+	if (av_image_alloc(picture_rgb->data, picture_rgb->linesize,
+		pCtx->width, pCtx->height, _raw_format, 4) < 0) {
+		fprintf(stderr, "Error allocating RGB frame buffer"); return;
 	}
 
 	// Fill in frame parameters
@@ -154,15 +154,15 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 	picture_rgb->height = pCtx->height;
 
 	/* Init scale & convert */
-	if ((Sctx=sws_getContext(
+	if ((Sctx = sws_getContext(
 		width,
 		height,
 		_raw_format,
 		pCtx->width,
 		pCtx->height,
 		pCtx->pix_fmt,
-		SWS_BICUBIC,NULL,NULL,NULL)) == NULL ) {
-			fprintf(stderr, "Error in scaling" ); return;
+		SWS_BICUBIC, NULL, NULL, NULL)) == NULL) {
+		fprintf(stderr, "Error in scaling"); return;
 	}
 
 	avformat_write_header(container, &codec_options);
@@ -184,7 +184,7 @@ void FFMpegEncoder::Close()
 
 	// Close the video file
 	if (container != NULL) {
-		_buffer_size = avio_close_dyn_buf( container->pb, &_buffer );
+		_buffer_size = avio_close_dyn_buf(container->pb, &_buffer);
 		avformat_free_context(container);
 		container = NULL;
 	}
@@ -204,6 +204,12 @@ void FFMpegEncoder::Close()
 	}
 
 	if (_slices != NULL) {
+		for (int i = 0; i < _frame_num; i++) {
+			if (_slices[i]) {
+				free(_slices[i]);
+				_slices[i] = NULL;
+			}
+		}
 		free(_slices);
 		_slices = NULL;
 		_allocated_slicenum = 0;
@@ -212,30 +218,46 @@ void FFMpegEncoder::Close()
 
 void FFMpegEncoder::FreeBuffer()
 {
-	if (_buffer != NULL ) { 
+	if (_buffer != NULL) {
 		_buffer_size = 0;
-		av_free( _buffer );
+		av_free(_buffer);
 		_buffer = NULL;
 	}
 }
 
 void FFMpegEncoder::SendSlice(unsigned char *slice)
 {
+	if (!slice) {
+		fprintf(stderr, "SendSlice: passed slice is null");
+		return;
+	}
 	if (_frame_num >= _allocated_slicenum) {
 		_allocated_slicenum += 100;
-		_slices = (void **)realloc( (void *)_slices,  _allocated_slicenum * sizeof(unsigned char*) );
+		_slices = (void **)realloc((void *)_slices, _allocated_slicenum * sizeof(unsigned char*));
+		if (!_slices)
+			fprintf(stderr, "realloc failed");
 	}
-	_slices[_frame_num] = slice;
+	size_t len = _width * _height * sizeof(unsigned char);
+	((unsigned char**)_slices)[_frame_num] = (unsigned char*)malloc(len);
+	memcpy(_slices[_frame_num], slice, len);
 	_frame_num++;
 }
 
 void FFMpegEncoder::SendSlice(unsigned short *slice)
 {
+	if (!slice) {
+		fprintf(stderr, "SendSlice: passed slice is null");
+		return;
+	}
 	if (_frame_num >= _allocated_slicenum) {
 		_allocated_slicenum += 100;
-		_slices = (void **)realloc( (void *)_slices,  _allocated_slicenum * sizeof(unsigned short*) );
+		_slices = (void **)realloc((void *)_slices, _allocated_slicenum * sizeof(unsigned short*));
+		if (!_slices)
+			fprintf(stderr, "realloc failed");
 	}
-	_slices[_frame_num] = slice;
+	size_t len = _width * _height * sizeof(unsigned short);
+	((unsigned short**)_slices)[_frame_num] = (unsigned short*)malloc(len);
+	memcpy(_slices[_frame_num], slice, len);
 	_frame_num++;
 }
 
@@ -247,57 +269,60 @@ void FFMpegEncoder::Encode()
 
 		if (_bdepth == 8) {
 			for (int x = 0; x < _width; x++)
-			for (int y = 0; y < _height; y++)
-				picture_rgb->data[0][ y*picture_rgb->linesize[0] + x ] = ((unsigned char**)_slices)[i][y*_width+x];
-		} else {
-			int linesize = picture_rgb->linesize[0]/2;
-			for (int x = 0; x < _width; x++)
-			for (int y = 0; y < _height; y++)
-				((unsigned short *)picture_rgb->data[0])[ y*linesize + x ] = ((unsigned short**)_slices)[i][y*_width+x];
+				for (int y = 0; y < _height; y++)
+					picture_rgb->data[0][y*picture_rgb->linesize[0] + x] = ((unsigned char**)_slices)[i][y*_width + x];
 		}
+		else {
+			int linesize = picture_rgb->linesize[0] / 2;
+			for (int x = 0; x < _width; x++)
+				for (int y = 0; y < _height; y++)
+					((unsigned short *)picture_rgb->data[0])[y*linesize + x] = ((unsigned short**)_slices)[i][y*_width + x];
+		}
+		//fprintf(stderr, "Encode: slice copied %d\n", i);
 
 		sws_scale(Sctx,              // sws context
-                  picture_rgb->data,        // src slice
-                  picture_rgb->linesize,    // src stride
-                  0,                      // src slice origin y
-                  pCtx->height,      // src slice height
-                  picture_yuv->data,        // dst
-                  picture_yuv->linesize );  // dst stride
+			picture_rgb->data,        // src slice
+			picture_rgb->linesize,    // src stride
+			0,                      // src slice origin y
+			pCtx->height,      // src slice height
+			picture_yuv->data,        // dst
+			picture_yuv->linesize);  // dst stride
 
 
-		//encode a frame
+  //encode a frame
 		AVPacket packet;
-        av_init_packet(&packet);
-        packet.data = NULL;
-        packet.size = 0;
+		av_init_packet(&packet);
+		packet.data = NULL;
+		packet.size = 0;
 
-        if ( pCtx->codec_id == AV_CODEC_ID_HEVC && picture_yuv != NULL ) {
-            picture_yuv->pts = _frame_count;
-            _frame_count++;
-        }
-        
-        int ret = 0;
-        
-        if (picture_yuv != NULL) {
-        	ret = avcodec_send_frame(pCtx, picture_yuv);
-        	if (ret < 0) {
-        		char ep[AV_ERROR_MAX_STRING_SIZE];
-        		av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
-        		fprintf(stderr, "Can not receive packet: %s", ep);
-        		return;
-        	}
-        } else {
-        	ret = avcodec_send_frame(pCtx, NULL);
-        }
+		if (pCtx->codec_id == AV_CODEC_ID_HEVC && picture_yuv != NULL) {
+			picture_yuv->pts = _frame_count;
+			_frame_count++;
+		}
+
+		int ret = 0;
+
+		if (picture_yuv != NULL) {
+			ret = avcodec_send_frame(pCtx, picture_yuv);
+			if (ret < 0) {
+				char ep[AV_ERROR_MAX_STRING_SIZE];
+				av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
+				fprintf(stderr, "Can not receive packet: %s", ep);
+				return;
+			}
+		}
+		else {
+			ret = avcodec_send_frame(pCtx, NULL);
+		}
 
 		av_init_packet(&packet);
 		packet.data = NULL;
 		packet.size = 0;
 		while (avcodec_receive_packet(pCtx, &packet) == 0) {
 			if (packet.data != NULL) {
-				if ( pCtx->codec_id == AV_CODEC_ID_HEVC )
+				if (pCtx->codec_id == AV_CODEC_ID_HEVC)
 				{
-					if (packet.pts == AV_NOPTS_VALUE && (pCtx->codec->capabilities & AV_CODEC_CAP_DELAY) == 0) 
+					if (packet.pts == AV_NOPTS_VALUE && (pCtx->codec->capabilities & AV_CODEC_CAP_DELAY) == 0)
 						packet.pts = _encoded_frames;
 
 					packet.stream_index = video_st->index;
@@ -310,7 +335,10 @@ void FFMpegEncoder::Encode()
 			}
 		}
 
+		//fprintf(stderr, "Encode: slice encoded %d\n", i);
 	}
+
+	//fprintf(stderr, "Encode: flush encoder \n");
 
 	// flush encoder
 	if (avcodec_send_frame(pCtx, NULL) != 0) {
@@ -320,9 +348,9 @@ void FFMpegEncoder::Encode()
 	packet.data = NULL;
 	packet.size = 0;
 	while (avcodec_receive_packet(pCtx, &packet) == 0) {
-		if ( pCtx->codec_id == AV_CODEC_ID_HEVC )
+		if (pCtx->codec_id == AV_CODEC_ID_HEVC)
 		{
-			if (packet.pts == AV_NOPTS_VALUE && (pCtx->codec->capabilities & AV_CODEC_CAP_DELAY) == 0) 
+			if (packet.pts == AV_NOPTS_VALUE && (pCtx->codec->capabilities & AV_CODEC_CAP_DELAY) == 0)
 				packet.pts = _encoded_frames;
 
 			packet.stream_index = video_st->index;
@@ -333,8 +361,9 @@ void FFMpegEncoder::Encode()
 		int result = av_interleaved_write_frame(container, &packet);
 		av_packet_unref(&packet);
 	}
-	
-	int result = av_write_frame(container, NULL);
+
+	//fprintf(stderr, "Encode: write trailer \n");
+	int result = av_interleaved_write_frame(container, NULL);
 	if (av_write_trailer(container) != 0) {
 		fprintf(stderr, "av_write_trailer failed\n");
 	}
