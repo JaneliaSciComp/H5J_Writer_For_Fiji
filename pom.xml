@@ -17,7 +17,7 @@
 
 	<groupId>org.janelia</groupId>
 	<artifactId>H5J_Writer_Plugin</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<version>1.0.1</version>
 
 	<name>plugins/H5J_Writer_Plugin.jar</name>
 	<description>A Maven project implementing an ImageJ plugin</description>
