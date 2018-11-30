@@ -135,6 +135,7 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 
 	/* the image can be allocated by any means and av_image_alloc() is
 	* just the most convenient way if av_malloc() is to be used */
+	/*
 	if (av_image_alloc(picture_yuv->data, picture_yuv->linesize,
 		pCtx->width, pCtx->height, pCtx->pix_fmt, 4) < 0) {
 		fprintf(stderr, "Error allocating YUV frame buffer"); return;
@@ -143,15 +144,18 @@ FFMpegEncoder::FFMpegEncoder(int width, int height, int bdepth, const char *code
 		pCtx->width, pCtx->height, _raw_format, 4) < 0) {
 		fprintf(stderr, "Error allocating RGB frame buffer"); return;
 	}
+	*/
 
 	// Fill in frame parameters
 	picture_yuv->format = pCtx->pix_fmt;
 	picture_yuv->width = pCtx->width;
 	picture_yuv->height = pCtx->height;
+	av_frame_get_buffer(picture_yuv, 32);
 
 	picture_rgb->format = _raw_format;
 	picture_rgb->width = pCtx->width;
 	picture_rgb->height = pCtx->height;
+	av_frame_get_buffer(picture_rgb, 32);
 
 	/* Init scale & convert */
 	if ((Sctx = sws_getContext(
