@@ -4,24 +4,22 @@ package org.janelia.it.fiji.plugins.h5j;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.ShortPointer;
 import org.bytedeco.javacpp.DoublePointer;
-import org.bytedeco.javacpp.IntPointer;
-import org.bytedeco.javacpp.Pointer;
-import org.bytedeco.javacpp.PointerPointer;
-import org.bytedeco.javacpp.avutil;
+
+import org.bytedeco.ffmpeg.avcodec.*;
+import org.bytedeco.ffmpeg.avformat.*;
+import org.bytedeco.ffmpeg.avutil.*;
+import org.bytedeco.ffmpeg.swscale.*;
+
+import static org.bytedeco.ffmpeg.global.avcodec.*;
+import static org.bytedeco.ffmpeg.global.avformat.*;
+import static org.bytedeco.ffmpeg.global.avutil.*;
+import static org.bytedeco.ffmpeg.global.swscale.*;
 
 import ij.IJ;
 
-import static org.bytedeco.javacpp.avcodec.*;
-import static org.bytedeco.javacpp.avdevice.avdevice_register_all;
-import static org.bytedeco.javacpp.avformat.*;
-import static org.bytedeco.javacpp.avutil.*;
-import static org.bytedeco.javacpp.swscale.*;
-
 public class FFMpegEncoder {
-    //typedef FFMpegVideo::Channel Channel;
-
     FFMpegEncoder(String file_name, int width, int height, int bdepth, String codec_name/* = AV_CODEC_ID_MPEG4*/, String options) {
-    	picture_yuv = null;
+        picture_yuv = null;
         picture_rgb = null;
         container = null;
         use_buffer = false;
@@ -29,19 +27,18 @@ public class FFMpegEncoder {
         _buffer = null;
         _frame_count = 0;
         _encoded_frames = 0;
-        
+
         if (0 != (width % 2))
             IJ.log("WARNING: Video width is not a multiple of 2");
         if (0 != (height % 2))
             IJ.log("WARNING: Video height is not a multiple of 2");
-        
-        avcodec_register_all();
-        avdevice_register_all();
-        av_register_all();
+
+        // Registration calls (avcodec_register_all, av_register_all) removed -
+        // codecs/formats are registered automatically in FFmpeg 4.0+
         avformat_network_init();
-        
+
         //av_log_set_level(AV_LOG_TRACE);
-        
+
         AVCodec codec = avcodec_find_encoder_by_name(codec_name);
         if (null == codec) {
         	IJ.log("Unable to find codec");
@@ -54,7 +51,7 @@ public class FFMpegEncoder {
             IJ.log("Unable to allocate format context");
             return;
         }
-        
+
         AVOutputFormat fmt = null;
         if ( file_name == null )
             if ( codec.id() == AV_CODEC_ID_FFV1 )
@@ -72,8 +69,8 @@ public class FFMpegEncoder {
 
         container.oformat(fmt);
 
-        fmt.video_codec(codec.id());
-        // fmt->video_codec = AV_CODEC_ID_H264; // fails to write
+        // fmt.video_codec() removed - AVOutputFormat is opaque in FFmpeg 5.0+
+        // The codec is specified directly via avcodec_alloc_context3
 
         pCtx = avcodec_alloc_context3(codec);
         pCtx.width(width);
@@ -83,7 +80,7 @@ public class FFMpegEncoder {
         pCtx.time_base(new AVRational().num(1).den(25));
         if ((fmt.flags() & AVFMT_GLOBALHEADER) > 0)
             pCtx.flags(AV_CODEC_FLAG_GLOBAL_HEADER);
-        pCtx.strict_std_compliance(AVCodecContext.FF_COMPLIANCE_EXPERIMENTAL);
+        pCtx.strict_std_compliance(FF_COMPLIANCE_EXPERIMENTAL);
         if (bdepth == 8) {
         	pCtx.pix_fmt(AV_PIX_FMT_YUV444P);
         	_raw_format = AV_PIX_FMT_RGB24;
@@ -92,7 +89,7 @@ public class FFMpegEncoder {
         	pCtx.pix_fmt(AV_PIX_FMT_GRAY12);
         	_raw_format = AV_PIX_FMT_GRAY16;
         }
-        
+
         AVDictionary codec_options = new AVDictionary();
         switch ( pCtx.codec_id() )
         {
@@ -100,17 +97,16 @@ public class FFMpegEncoder {
             {
             	av_dict_set( codec_options, "preset", "medium", 0 );
                 av_dict_set( codec_options, "x265-params", options, 0 );
-                //IJ.log("CodecID: AV_CODEC_ID_HEVC");
                 break;
             }
         }
-        
+
         int err = 0;
         if ((err = avcodec_open2(pCtx, codec, codec_options)) < 0) {
         	IJ.log("Error opening codec: "+err);
         	return;
         }
-        
+
         /* open the output file */
         ioc = new AVIOContext();
         if ((fmt.flags() & AVFMT_NOFILE) == 0)
@@ -130,22 +126,22 @@ public class FFMpegEncoder {
             }
             container.pb(ioc);
         }
-        
+
         video_st = avformat_new_stream(container, codec);
         if (video_st == null) {
         	IJ.log("Error creating stream");
         	return;
         }
-        
+
         video_st.id(container.nb_streams()-1);
         //video_st.sample_aspect_ratio(pCtx.sample_aspect_ratio());
         video_st.time_base(pCtx.time_base());
-       
+
         if (avcodec_parameters_from_context(video_st.codecpar(), pCtx) < 0) {
         	IJ.log("avcodec_parameters_from_context failed");
         	return;
         }
-        
+
         /* Get framebuffers */
         if ( ( picture_yuv = av_frame_alloc() ) == null ) { // final frame format
             IJ.log(""); return;
@@ -153,27 +149,23 @@ public class FFMpegEncoder {
         if ( ( picture_rgb = av_frame_alloc() ) == null ) { // rgb version I can understand easily
         	IJ.log(""); return;
         }
-        
+
         /* the image can be allocated by any means and av_image_alloc() is
              * just the most convenient way if av_malloc() is to be used */
         if ( av_image_alloc(picture_yuv.data(), picture_yuv.linesize(),
                            pCtx.width(), pCtx.height(), pCtx.pix_fmt(), 1) < 0 ) {
-        	IJ.log("Error allocating YUV frame buffer"); return;
+            IJ.log("Error allocating YUV frame buffer"); return;
         }
         if ( av_image_alloc(picture_rgb.data(), picture_rgb.linesize(),
                        pCtx.width(), pCtx.height(), _raw_format, 1) < 0 ) {
-        	IJ.log("Error allocating RGB frame buffer"); return;
+            IJ.log("Error allocating RGB frame buffer"); return;
         }
-        
-        //IJ.log("w: "+pCtx.width());
-        //IJ.log("h: "+pCtx.height());
-        //IJ.log("linesize: "+picture_rgb.linesize().get(0));
 
         // Fill in frame parameters
         picture_yuv.format(pCtx.pix_fmt());
         picture_yuv.width(pCtx.width());
         picture_yuv.height(pCtx.height());
-        
+
         picture_rgb.format(_raw_format);
         picture_rgb.width(pCtx.width());
         picture_rgb.height(pCtx.height());
@@ -192,7 +184,7 @@ public class FFMpegEncoder {
 
         avformat_write_header(container, codec_options);
     }
-   
+
     void setPixelIntensity(int x, int y, int c, byte value) {
     	BytePointer bp = new BytePointer(picture_rgb.data().get(0));
     	bp.put( y * picture_rgb.linesize().get(0) + x * 3 + c, value );
@@ -203,9 +195,9 @@ public class FFMpegEncoder {
     	sp.put( y * picture_rgb.linesize().get(0)/2 + x, value );
     	sp.close();
     }
-    
+
     void write_frame() {
-    	// convert from RGB24 to YUV
+        // convert from RGB24 to YUV
         sws_scale(Sctx,              // sws context
                   picture_rgb.data(),        // src slice
                   picture_rgb.linesize(),    // src stride
@@ -218,7 +210,7 @@ public class FFMpegEncoder {
         // use non-deprecated avcodec_encode_video2(...)
         encode( picture_yuv );
     }
-    
+
     void close() {
     	int result = av_write_frame(container, (AVPacket)null); // flush
         result = av_write_trailer(container);
@@ -229,67 +221,66 @@ public class FFMpegEncoder {
                 avio_close(container.pb());
         }
     }
-    
+
     int buffer_size() { return _buffer_size; }
     BytePointer buffer() { return _buffer; }
     void free_buffer() { if (_buffer_size > 0 ) { _buffer_size = 0; av_free( _buffer ); _buffer.close(); } }
-    
+
     void encode( AVFrame picture ) {
-    	AVPacket packet = new AVPacket();
-        av_init_packet(packet);
-        packet.data(null);
-        packet.size(0);
+        // av_packet_alloc replaces deprecated av_init_packet (removed in FFmpeg 5.0)
+        AVPacket packet = av_packet_alloc();
+        if (packet == null) return;
 
         if ( pCtx.codec_id() == AV_CODEC_ID_HEVC && picture != null ) {
             picture.pts(_frame_count);
             _frame_count++;
         }
-        
+
         int ret = 0;
-        
+
         if (picture != null) {
         	ret = avcodec_send_frame(pCtx, picture);
         	if (ret < 0) {
         		BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
-        		avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
+        		av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
         		//System.out.println("Can not send frame:"+ep.getString());
         		//IJ.log("frame: "+ _encoded_frames +"    send_error: "+ret);
+        		av_packet_unref(packet);
         		return;
         	}
         } else {
         	ret = avcodec_send_frame(pCtx, (AVFrame)null);
         }
-        
+
         ret = avcodec_receive_packet(pCtx, packet);
         if (ret < 0) {
             BytePointer ep = new BytePointer(AV_ERROR_MAX_STRING_SIZE);
-            avutil.av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
+            av_make_error_string(ep, AV_ERROR_MAX_STRING_SIZE, ret);
             //System.out.println("Can not receive  packet:"+ep.getString());
             //IJ.log("frame: "+ _encoded_frames +"    receive_error: "+ret);
+            av_packet_unref(packet);
             return;
         }
-        
+
         if (!packet.isNull()) {
-        	//System.out.println("Succeed to encode one frame \tsize"+packet.size());
-        	
             if ( pCtx.codec_id() == AV_CODEC_ID_HEVC )
             {
-                if (packet.pts() == AV_NOPTS_VALUE && (pCtx.codec().capabilities() & AV_CODEC_CAP_DELAY) == 0) 
+                if (packet.pts() == AV_NOPTS_VALUE && (pCtx.codec().capabilities() & AV_CODEC_CAP_DELAY) == 0)
                     packet.pts(_encoded_frames);
-                
+
                 packet.stream_index(video_st.index());
                 av_packet_rescale_ts(packet, pCtx.time_base(), video_st.time_base());
                 //packet.duration(packet.pts()-packet.dts());
             }
             _encoded_frames++;
-            
+
             //IJ.log("frame: "+ _encoded_frames +"  packet size: "+packet.size()+"  pts: "+packet.pts()+"  dts: "+packet.dts()+"  d: "+packet.duration());
             int result = av_write_frame(container, packet);
-            
+
             av_packet_unref(packet);
         }
     }
-    
+
     int encoded_frames() { return _encoded_frames; }
 
     private AVFormatContext container;

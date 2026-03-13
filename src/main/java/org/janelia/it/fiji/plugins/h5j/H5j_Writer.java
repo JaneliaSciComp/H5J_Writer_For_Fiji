@@ -26,11 +26,7 @@ import java.util.List;
 
 import org.bytedeco.javacpp.*;
 
-import static org.bytedeco.javacpp.avcodec.*;
-import static org.bytedeco.javacpp.avfilter.*;
-import static org.bytedeco.javacpp.avformat.*;
-import static org.bytedeco.javacpp.avutil.*;
-import static org.bytedeco.javacpp.presets.avutil.AVERROR_EAGAIN;
+import static org.bytedeco.ffmpeg.global.avutil.*;
 
 import ch.systemsx.cisd.hdf5.*;
 
