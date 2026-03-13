@@ -17,7 +17,7 @@
 
 	<groupId>org.janelia</groupId>
 	<artifactId>H5J_Writer_Plugin</artifactId>
-	<version>1.0.8-SNAPSHOT</version>
+	<version>1.0.8</version>
 
 	<name>plugins/H5J_Writer_Plugin.jar</name>
 	<description>A Maven project implementing an ImageJ plugin</description>
@@ -95,10 +95,6 @@
 
 		<!-- NB: Deploy releases to the ImageJ Maven repository. -->
 		<releaseProfiles>deploy-to-imagej</releaseProfiles>
-
-		<!-- Override pom-scijava managed versions to use latest JavaCPP/FFmpeg -->
-		<javacpp.version>1.5.11</javacpp.version>
-		<ffmpeg.version>7.1-1.5.11</ffmpeg.version>
 	</properties>
 
 	<repositories>
@@ -118,14 +114,14 @@
 		<dependency>
 			<groupId>cisd</groupId>
 			<artifactId>jhdf5</artifactId>
-			<version>14.12.6</version>
+			<version>19.04.1</version>
 		</dependency>
 
 		<!-- ffmpeg-platform transitively brings in javacpp-platform -->
 		<dependency>
 			<groupId>org.bytedeco</groupId>
 			<artifactId>ffmpeg-platform</artifactId>
-			<version>${ffmpeg.version}</version>
+			<version>6.1.1-1.5.10</version>
 		</dependency>
 
 		<dependency>
@@ -134,6 +130,31 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<profiles>
+		<profile>
+			<id>with-deps</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-dependency-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>copy-dependencies</id>
+								<phase>package</phase>
+								<goals><goal>copy-dependencies</goal></goals>
+								<configuration>
+									<outputDirectory>${project.build.directory}/deps</outputDirectory>
+									<includeScope>runtime</includeScope>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 	<build>
 		<plugins>
@@ -154,7 +175,6 @@
 					<argLine>-Xmx8G</argLine>
 				</configuration>
 			</plugin>
-
 		</plugins>
 	</build>
 </project>
