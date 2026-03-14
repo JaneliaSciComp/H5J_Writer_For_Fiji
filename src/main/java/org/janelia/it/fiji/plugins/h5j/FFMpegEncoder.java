@@ -1,10 +1,7 @@
 
 package org.janelia.it.fiji.plugins.h5j;
 
-import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.ShortPointer;
-import org.bytedeco.javacpp.DoublePointer;
-
+import ij.IJ;
 import org.bytedeco.ffmpeg.avcodec.AVCodec;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
@@ -16,6 +13,9 @@ import org.bytedeco.ffmpeg.avutil.AVDictionary;
 import org.bytedeco.ffmpeg.avutil.AVFrame;
 import org.bytedeco.ffmpeg.avutil.AVRational;
 import org.bytedeco.ffmpeg.swscale.SwsContext;
+import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.javacpp.DoublePointer;
+import org.bytedeco.javacpp.ShortPointer;
 
 import static org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_CAP_DELAY;
 import static org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -26,11 +26,13 @@ import static org.bytedeco.ffmpeg.global.avcodec.av_packet_alloc;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_rescale_ts;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_alloc_context3;
+import static org.bytedeco.ffmpeg.global.avcodec.avcodec_find_encoder;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_find_encoder_by_name;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_open2;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_parameters_from_context;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_receive_packet;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_send_frame;
+import static org.bytedeco.ffmpeg.global.avdevice.avdevice_register_all;
 import static org.bytedeco.ffmpeg.global.avformat.AVFMT_GLOBALHEADER;
 import static org.bytedeco.ffmpeg.global.avformat.AVFMT_NOFILE;
 import static org.bytedeco.ffmpeg.global.avformat.AVIO_FLAG_WRITE;
@@ -60,10 +62,11 @@ import static org.bytedeco.ffmpeg.global.swscale.SWS_BICUBIC;
 import static org.bytedeco.ffmpeg.global.swscale.sws_getContext;
 import static org.bytedeco.ffmpeg.global.swscale.sws_scale;
 
-import ij.IJ;
-
 public class FFMpegEncoder {
-    FFMpegEncoder(String file_name, int width, int height, int bdepth, String codec_name/* = AV_CODEC_ID_MPEG4*/, String options) {
+    FFMpegEncoder(String file_name, int width, int height, int bdepth,
+                  String codec_name/* = AV_CODEC_ID_MPEG4*/,
+                  int codec_id,
+                  String options) {
         picture_yuv = null;
         picture_rgb = null;
         container = null;
@@ -78,14 +81,22 @@ public class FFMpegEncoder {
         if (0 != (height % 2))
             IJ.log("WARNING: Video height is not a multiple of 2");
 
-        // Registration calls (avcodec_register_all, av_register_all) removed -
         // codecs/formats are registered automatically in FFmpeg 4.0+
+        avdevice_register_all();
         avformat_network_init();
 
         AVCodec codec = avcodec_find_encoder_by_name(codec_name);
-        if (null == codec) {
-            IJ.log("Unable to find codec " + codec_name);
+        if (codec == null && codec_id > 0) {
+            // lookup by ID
+            IJ.log("Unable to find codec by name: " + codec_name + " trying by ID: " + codec_id);
+            codec = avcodec_find_encoder(codec_id);
+        }
+
+        if (codec == null) {
+            IJ.log("Unable to find codec by name " + codec_name + " or by id " + codec_id);
             return;
+        } else {
+            IJ.log("Found codec " + codec_name);
         }
 
         container = avformat_alloc_context();

@@ -23,6 +23,7 @@ import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
 import org.bytedeco.javacpp.BytePointer;
 
+import static org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_H265;
 import static org.bytedeco.ffmpeg.global.avutil.av_strerror;
 
 /**
@@ -84,7 +85,12 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
         List<Double> imin = new ArrayList<>(Collections.nCopies(nCh, 0.0));
         List<Double> irange2 = new ArrayList<>(Collections.nCopies(nCh, default_irange));
 
-        FFMpegEncoder encoder = new FFMpegEncoder(file_name, w, h, bdepth, "libx265", "crf=7:psy-rd=1.0");
+        FFMpegEncoder encoder = new FFMpegEncoder(
+                file_name,
+                w, h, bdepth,
+                "libx265",
+                AV_CODEC_ID_H265,
+                "crf=7:psy-rd=1.0");
         for (int z = 0; z < d; ++z) {
             for (int y = 0; y < h; ++y) {
                 for (int x = 0; x < w; ++x) {
@@ -169,7 +175,12 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
                 double default_irange = 1.0; // assumes data range is 0-255.0
                 List<Double> imin = new ArrayList<>(Collections.nCopies(nCh, 0.0));
                 List<Double> irange2 = new ArrayList<>(Collections.nCopies(nCh, default_irange));
-                FFMpegEncoder encoder = new FFMpegEncoder((String) null, (int) scaledWidth, (int) scaledHeight, bdepth, "libx265", options);
+                FFMpegEncoder encoder = new FFMpegEncoder(
+                        (String) null,
+                        (int) scaledWidth, (int) scaledHeight, bdepth,
+                        "libx265",
+                        AV_CODEC_ID_H265,
+                        options);
                 if (!encoder.isReady()) {
                     IJ.log("FFMpegEncoder failed to initialize (codec not found - check that JavaCPP native libs are accessible)");
                     return false;
