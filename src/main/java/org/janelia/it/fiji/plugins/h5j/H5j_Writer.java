@@ -146,7 +146,10 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
             final File h5file = new File(fileName);
             if (h5file.exists())
                 h5file.delete();
-            final IHDF5Writer writer = HDF5Factory.open(h5file);
+            final IHDF5Writer writer = HDF5Factory.configure(h5file)
+                    .useSimpleDataSpaceForAttributes()
+                    .dontUseExtendableDataTypes()
+                    .writer();
             writer.object().createGroup("/Channels");
 
             long scaledHeight = nearestPowerOfEight(h);
@@ -236,8 +239,9 @@ public class H5j_Writer extends ImagePlus implements PlugInFilter {
                 byte[] arr = new byte[encoder.buffer_size()];
                 encoder.buffer().get(arr);
                 String dataset_path = "/Channels/Channel_" + c;
-                writer.int8().createArray(dataset_path, arr.length);
-                writer.int8().writeArray(dataset_path, arr);
+                writer.uint8().createArray(dataset_path, arr.length);
+                writer.uint8().writeArray(dataset_path, arr);
+                IJ.log("Finished Dataset " + dataset_path + " (" + arr.length + " bytes)");
             }
             writer.file().flush();
             writer.close();

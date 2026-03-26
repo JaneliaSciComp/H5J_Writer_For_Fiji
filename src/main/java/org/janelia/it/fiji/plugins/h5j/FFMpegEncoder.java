@@ -189,11 +189,11 @@ public class FFMpegEncoder {
 
         /* Get framebuffers */
         if ((picture_yuv = av_frame_alloc()) == null) { // final frame format
-            IJ.log("");
+            IJ.log("Error allocating frame for YUV picture");
             return;
         }
         if ((picture_rgb = av_frame_alloc()) == null) { // rgb version I can understand easily
-            IJ.log("");
+            IJ.log("Error allocating frame for RGB picture");
             return;
         }
 
@@ -292,7 +292,10 @@ public class FFMpegEncoder {
     void encode(AVFrame picture) {
         // av_packet_alloc replaces deprecated av_init_packet (removed in FFmpeg 5.0)
         AVPacket packet = av_packet_alloc();
-        if (packet == null) return;
+        if (packet == null) {
+            IJ.log("Error allocating package");
+            return;
+        }
 
         if (pCtx.codec_id() == AV_CODEC_ID_HEVC && picture != null) {
             picture.pts(_frame_count);
